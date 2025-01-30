@@ -4,12 +4,11 @@
     <meta charset="UTF-8">
     <title>AR Bodenbelag</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@immersive-web/xr-boilerplate/build/xr-boilerplate.min.js"></script>
 </head>
 <body style="margin: 0; overflow: hidden;">
     <button id="startAR" style="position: absolute; top: 20px; left: 20px; z-index: 100;">AR Starten</button>
     <script>
-        let scene, camera, renderer, xrSession, floorPlane;
+        let scene, camera, renderer, xrSession, floorPlane, hitTestSource;
 
         async function startAR() {
             if (!navigator.xr) {
@@ -18,30 +17,58 @@
             }
 
             try {
-                xrSession = await navigator.xr.requestSession("immersive-ar", { requiredFeatures: ["hit-test"] });
+                xrSession = await navigator.xr.requestSession("immersive-ar", {
+                    requiredFeatures: ["hit-test"]
+                });
 
+                // Renderer einrichten
                 renderer = new THREE.WebGLRenderer({ alpha: true });
                 renderer.xr.enabled = true;
                 document.body.appendChild(renderer.domElement);
 
+                // Szene und Kamera
                 scene = new THREE.Scene();
                 camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
                 scene.add(camera);
 
+                // Textur für Bodenbelag laden
+                let textureLoader = new THREE.TextureLoader();
+                let floorTexture = textureLoader.load("https://raw.githubusercontent.com/Walch89/Bodenbel-ge/main/parkett.jpg");
+
+                // Bodenebene (noch nicht sichtbar)
                 let geometry = new THREE.PlaneGeometry(2, 2);
-                let material = new THREE.MeshBasicMaterial({
-                    map: new THREE.TextureLoader().load("https://raw.githubusercontent.com/Walch89/Bodenbel-ge/main/parkett.jpg"),
-                    side: THREE.DoubleSide
-                });
+                let material = new THREE.MeshBasicMaterial({ map: floorTexture, side: THREE.DoubleSide });
                 floorPlane = new THREE.Mesh(geometry, material);
                 floorPlane.rotation.x = -Math.PI / 2;
+                floorPlane.visible = false;
                 scene.add(floorPlane);
 
+                // XR-Session starten
+                renderer.xr.setSession(xrSession);
+                let referenceSpace = await xrSession.requestReferenceSpace("local");
+                let viewerSpace = await xrSession.requestReferenceSpace("viewer");
+                hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+
+                // Animationsloop starten
                 renderer.setAnimationLoop(() => {
                     renderer.render(scene, camera);
                 });
 
-                console.log("🚀 AR gestartet!");
+                // "Hit-Test" aktivieren
+                xrSession.addEventListener("select", (event) => {
+                    if (hitTestSource) {
+                        let frame = event.frame;
+                        let hitTestResults = frame.getHitTestResults(hitTestSource);
+                        if (hitTestResults.length > 0) {
+                            let hit = hitTestResults[0];
+                            let pose = hit.getPose(referenceSpace);
+                            floorPlane.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+                            floorPlane.visible = true;
+                        }
+                    }
+                });
+
+                console.log("🚀 WebXR AR gestartet!");
             } catch (error) {
                 console.error("❌ Fehler beim Starten von WebXR:", error);
             }
