@@ -2,26 +2,37 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>AR Bodenbelag</title>
+    <title>AR Bodenbelag Debug</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #debug { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.7); padding: 10px; font-size: 12px; }
+    </style>
 </head>
-<body style="margin: 0; overflow: hidden;">
+<body>
     <button id="startAR" style="position: absolute; top: 20px; left: 20px; z-index: 100;">AR Starten</button>
+    <div id="debug">📡 Debugging läuft...</div>
+    
     <script>
         let scene, camera, renderer, xrSession, floorPlane, hitTestSource;
+        let debugDiv = document.getElementById("debug");
+
+        function logDebug(message) {
+            console.log(message); 
+            debugDiv.innerHTML += "<br>🟢 " + message; 
+        }
 
         async function startAR() {
             if (!navigator.xr) {
-                alert("WebXR wird auf diesem Gerät nicht unterstützt.");
+                logDebug("❌ WebXR wird nicht unterstützt.");
                 return;
             }
 
             try {
-                xrSession = await navigator.xr.requestSession("immersive-ar", {
-                    requiredFeatures: ["hit-test"]
-                });
+                xrSession = await navigator.xr.requestSession("immersive-ar", { requiredFeatures: ["hit-test"] });
+                logDebug("✅ WebXR-Session gestartet!");
 
-                // Renderer einrichten
+                // Renderer
                 renderer = new THREE.WebGLRenderer({ alpha: true });
                 renderer.xr.enabled = true;
                 document.body.appendChild(renderer.domElement);
@@ -33,7 +44,11 @@
 
                 // Textur für Bodenbelag laden
                 let textureLoader = new THREE.TextureLoader();
-                let floorTexture = textureLoader.load("https://schweizer-parkett-restposten.ch/wp-content/uploads/Objekt_Langstab-e1680615721864.png");
+                let floorTexture = textureLoader.load("https://schweizer-parkett-restposten.ch/wp-content/uploads/Objekt_Langstab-e1680615721864.png",
+                    () => logDebug("✅ Textur erfolgreich geladen!"),
+                    undefined,
+                    () => logDebug("❌ Fehler beim Laden der Textur!")
+                );
 
                 // Bodenebene (noch nicht sichtbar)
                 let geometry = new THREE.PlaneGeometry(2, 2);
@@ -43,11 +58,21 @@
                 floorPlane.visible = false;
                 scene.add(floorPlane);
 
+                logDebug("✅ Bodenebene erstellt!");
+
                 // XR-Session starten
                 renderer.xr.setSession(xrSession);
                 let referenceSpace = await xrSession.requestReferenceSpace("local");
                 let viewerSpace = await xrSession.requestReferenceSpace("viewer");
                 hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+
+                if (!hitTestSource) {
+                    logDebug("⚠️ Hit-Test nicht verfügbar! Setze Standardposition.");
+                    floorPlane.position.set(0, 0, -1);
+                    floorPlane.visible = true;
+                } else {
+                    logDebug("✅ Hit-Test initialisiert.");
+                }
 
                 // Animationsloop starten
                 renderer.setAnimationLoop(() => {
@@ -56,6 +81,8 @@
 
                 // "Hit-Test" aktivieren
                 xrSession.addEventListener("select", (event) => {
+                    logDebug("👆 Bildschirm wurde getippt!");
+
                     if (hitTestSource) {
                         let frame = event.frame;
                         let hitTestResults = frame.getHitTestResults(hitTestSource);
@@ -64,13 +91,16 @@
                             let pose = hit.getPose(referenceSpace);
                             floorPlane.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
                             floorPlane.visible = true;
+                            logDebug("✅ Boden erfolgreich platziert bei: " + JSON.stringify(floorPlane.position));
+                        } else {
+                            logDebug("⚠️ Kein Treffer erkannt!");
                         }
                     }
                 });
 
-                console.log("🚀 WebXR AR gestartet mit neuem Bodenbelag!");
+                logDebug("🚀 WebXR AR gestartet!");
             } catch (error) {
-                console.error("❌ Fehler beim Starten von WebXR:", error);
+                logDebug("❌ Fehler beim Starten von WebXR: " + error.message);
             }
         }
 
