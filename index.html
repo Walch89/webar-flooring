@@ -2,111 +2,34 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>AR Debugging</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <title>AR Bodenbelag</title>
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; }
-        #debug { position: absolute; top: 10px; left: 10px; width: 90%; height: 150px; color: white; background: rgba(0,0,0,0.9); padding: 10px; font-size: 16px; overflow-y: auto; }
+        body { margin: 0; overflow: hidden; text-align: center; }
+        #ar-button { 
+            background-color: #007AFF; color: white; border: none; 
+            padding: 15px; font-size: 18px; cursor: pointer;
+            position: absolute; bottom: 20px; left: 50%;
+            transform: translateX(-50%);
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
-    <button id="startAR" style="position: absolute; top: 20px; left: 20px; z-index: 100;">AR Starten</button>
-    <div id="debug">📡 Debugging läuft...</div>
-    
+    <model-viewer 
+        id="floor-model" 
+        src="https://schweizer-parkett-restposten.ch/wp-content/uploads/Objekt_Langstab-e1680615721864.png" 
+        ar ar-modes="scene-viewer quick-look webxr" 
+        camera-controls 
+        style="width: 100%; height: 100vh;">
+    </model-viewer>
+
+    <button id="ar-button" onclick="startAR()">📌 In AR anzeigen</button>
+
     <script>
-        let scene, camera, renderer, xrSession, floorPlane, hitTestSource;
-        let debugDiv = document.getElementById("debug");
-
-        function logDebug(message) {
-            console.log(message); 
-            debugDiv.innerHTML += "<br>🟢 " + message; 
+        function startAR() {
+            document.getElementById("floor-model").activateAR();
         }
-
-        async function startAR() {
-            logDebug("🔵 Versuche WebXR zu starten...");
-
-            if (!navigator.xr) {
-                logDebug("❌ WebXR wird nicht unterstützt!");
-                return;
-            }
-
-            try {
-                xrSession = await navigator.xr.requestSession("immersive-ar", { requiredFeatures: ["hit-test"] });
-                logDebug("✅ WebXR-Session erfolgreich gestartet!");
-
-                // Renderer einrichten
-                renderer = new THREE.WebGLRenderer({ alpha: true });
-                renderer.xr.enabled = true;
-                document.body.appendChild(renderer.domElement);
-
-                // Szene & Kamera
-                scene = new THREE.Scene();
-                camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-                scene.add(camera);
-
-                // Bodenbild von Imgur (um sicherzustellen, dass es geladen wird)
-                let textureLoader = new THREE.TextureLoader();
-                let floorTexture = textureLoader.load("https://i.imgur.com/7xqM3nE.jpg",
-                    () => logDebug("✅ Textur erfolgreich geladen!"),
-                    undefined,
-                    () => logDebug("❌ Fehler beim Laden der Textur!")
-                );
-
-                // Bodenebene (noch nicht sichtbar)
-                let geometry = new THREE.PlaneGeometry(2, 2);
-                let material = new THREE.MeshBasicMaterial({ map: floorTexture, side: THREE.DoubleSide });
-                floorPlane = new THREE.Mesh(geometry, material);
-                floorPlane.rotation.x = -Math.PI / 2;
-                floorPlane.visible = false;
-                scene.add(floorPlane);
-
-                logDebug("✅ Bodenebene erstellt!");
-
-                // XR-Session starten
-                renderer.xr.setSession(xrSession);
-                let referenceSpace = await xrSession.requestReferenceSpace("local");
-                let viewerSpace = await xrSession.requestReferenceSpace("viewer");
-                hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
-
-                if (!hitTestSource) {
-                    logDebug("⚠️ Hit-Test nicht verfügbar! Setze Standardposition.");
-                    floorPlane.position.set(0, 0, -1);
-                    floorPlane.visible = true;
-                } else {
-                    logDebug("✅ Hit-Test erfolgreich initialisiert.");
-                }
-
-                // Animationsloop starten
-                renderer.setAnimationLoop(() => {
-                    renderer.render(scene, camera);
-                });
-
-                // "Hit-Test" aktivieren
-                xrSession.addEventListener("select", (event) => {
-                    logDebug("👆 Bildschirm wurde getippt!");
-
-                    if (hitTestSource) {
-                        let frame = event.frame;
-                        let hitTestResults = frame.getHitTestResults(hitTestSource);
-                        if (hitTestResults.length > 0) {
-                            let hit = hitTestResults[0];
-                            let pose = hit.getPose(referenceSpace);
-                            floorPlane.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
-                            floorPlane.visible = true;
-                            logDebug("✅ Boden erfolgreich platziert bei: " + JSON.stringify(floorPlane.position));
-                        } else {
-                            logDebug("⚠️ Kein Treffer erkannt!");
-                        }
-                    }
-                });
-
-                logDebug("🚀 WebXR AR gestartet!");
-            } catch (error) {
-                logDebug("❌ Fehler beim Starten von WebXR: " + error.message);
-            }
-        }
-
-        document.getElementById("startAR").addEventListener("click", startAR);
     </script>
 </body>
 </html>
