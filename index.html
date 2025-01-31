@@ -41,15 +41,15 @@
     <button id="ar-button" onclick="startAR()">📌 In AR anzeigen</button>
 
     <script>
-        function startAR() {
-            let modelViewer = document.getElementById("floor-model");
-            modelViewer.activateAR();
-        }
-
         function changeFloor() {
             let selectedModel = document.getElementById("floor-selection").value;
             let modelViewer = document.getElementById("floor-model");
             modelViewer.src = selectedModel;
+        }
+
+        function startAR() {
+            let selectedModel = document.getElementById("floor-selection").value;
+            window.location.href = selectedModel; // Direkter Link zu Quick Look
         }
     </script>
 </body>
